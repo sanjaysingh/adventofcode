@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
-using Vertex = string;
+using Graph = System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<string>>;
 namespace AdventOfCode;
+
 public static class Day25
 {
     private static readonly string inputFileFullPath = Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "day25/input.txt");
@@ -13,47 +14,29 @@ public static class Day25
             var graph = ReadInput();
             graph = kargerMinCut(graph, r);
 
-            if (graph.Edges.Count == 3)
+            if (graph.First().Value.Count == 3)
             {
-                Console.WriteLine(graph.Vertices[0].Split(",").Count() * graph.Vertices[1].Split(",").Count());
+                Console.WriteLine(graph.First().Key.Split(",").Count() * graph.Last().Key.Split(",").Count());
                 break;
             }
         }
     }
 
-    public static void SolvePart2()
-    {
-
-    }
-
     private static Graph kargerMinCut(Graph graph, Random r)
     {
-       
-        while (graph.Vertices.Count > 2)
+        while (graph.Count > 2)
         {
-            int edgeIndex = r.Next(graph.Edges.Count);
-            var removedEdge = graph.Edges[edgeIndex];
-            graph.Edges.RemoveAt(edgeIndex);
-            graph.Vertices.Remove(removedEdge.Vertices.First());
-            graph.Vertices.Remove(removedEdge.Vertices.Last());
-            var mergedNode = $"{removedEdge.Vertices.First()},{removedEdge.Vertices.Last()}";
-            graph.Vertices.Add(mergedNode);
-            int i = 0;
-            while (i < graph.Edges.Count)
+            var u = graph.Keys.ElementAt(r.Next(graph.Count));
+            var v = graph[u].ElementAt(r.Next(graph[u].Count));
+            var mergedNode = $"{u},{v}";
+            graph[mergedNode] = [.. graph[u].Where(n => n != v), .. graph[v].Where(n => n != u)];
+            graph.Remove(u);
+            graph.Remove(v);
+
+            foreach (var n2 in graph[mergedNode])
             {
-                var e = graph.Edges[i];
-                if (e.Vertices.Contains(removedEdge.Vertices.First()))
-                {
-                    e.Vertices.Remove(removedEdge.Vertices.First());
-                    e.Vertices.Add(mergedNode);
-                }
-                if (e.Vertices.Contains(removedEdge.Vertices.Last()))
-                {
-                    e.Vertices.Remove(removedEdge.Vertices.Last());
-                    e.Vertices.Add(mergedNode);
-                }
-                if (e.Vertices.Count == 1) graph.Edges.RemoveAt(i);
-                else i++;
+                while (graph[n2].Remove(u)) graph[n2].Add(mergedNode);
+                while (graph[n2].Remove(v)) graph[n2].Add(mergedNode);
             }
         }
 
@@ -62,23 +45,20 @@ public static class Day25
 
     private static Graph ReadInput()
     {
-        var vertices = new List<Vertex>();
-        var edges = new List<Edge>();
+        var graph = new Graph();
         foreach (var line in File.ReadLines(inputFileFullPath))
         {
             var nodes = line.Split(':', ' ').Select(x => x.Trim()).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
             var parent = nodes[0];
-            if (!vertices.Contains(parent)) vertices.Add(parent);
+            if (!graph.ContainsKey(parent)) graph.Add(parent, new List<string>());
             foreach (var child in nodes.Skip(1))
             {
-                if (!vertices.Contains(child)) vertices.Add(child);
-                edges.Add(new Edge(new SortedSet<Vertex> { parent, child }));
+                if (!graph.ContainsKey(child)) graph.Add(child, new List<string>());
+                graph[parent].Add(child);
+                graph[child].Add(parent);
             }
         }
 
-        return new Graph(vertices, edges);
+        return graph;
     }
-
-    private record Graph(List<Vertex> Vertices, List<Edge> Edges);
-    private record Edge(SortedSet<Vertex> Vertices);
 }
