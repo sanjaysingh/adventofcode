@@ -1,13 +1,8 @@
-﻿using System.Reflection;
-
-namespace AdventOfCode;
+﻿namespace AdventOfCode;
 
 public static class Day07
 {
-    private static readonly string InputPath = Path.Combine(
-        Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? string.Empty,
-        "day07/input.txt"
-    );
+    private static readonly string InputPath =  Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "day07", "input.txt");
 
     public static void SolvePart1()
     {
