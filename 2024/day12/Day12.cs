@@ -4,7 +4,30 @@ public static class Day12
     private static readonly string InputPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "day12", "input.txt");
     public static void SolvePart1()
     {
-        var map = ReadInput();
+        var price = FindRegions(ReadInput())
+                    .Sum(r => r.Count * r.Sum(p => p.Permiter()));
+        Console.WriteLine(price);
+    }
+    public static void SolvePart2()
+    {
+        var price = FindRegions(ReadInput())
+                     .Sum(r => r.Count * r.Sum(p => p.CountCorners()));
+        Console.WriteLine(price);
+    }
+
+    private static Map ReadInput()
+    {
+        var map = new Map();
+        var plots = File
+        .ReadAllLines(InputPath)
+            .Select((row, x) => row.Select((ch, y) => new Plot(ch, new Coord(x, y), map)).ToList())
+            .ToList();
+        map.Plots = plots;
+        return map;
+    }
+
+    private static List<List<Plot>> FindRegions(Map map)
+    {
         var plots = map.Plots.SelectMany(x => x).ToList();
         var regions = new List<List<Plot>>();
         while (plots.Any())
@@ -15,48 +38,46 @@ public static class Day12
             regions.Add(region);
             plots.RemoveAll(p => region.Contains(p));
         }
-
-        var totalPrice = 0;
-        foreach (var region in regions)
-        {
-            var area = region.Count();
-            var permiter = region.Sum(p => p.Permiter());
-            var price = area * permiter;
-            totalPrice += price;
-        }
-
-        Console.WriteLine(totalPrice);
-    }
-    public static void SolvePart2() { }
-
-    private static Map ReadInput()
-    {
-        var map = new Map();
-        var plots = File
-        .ReadAllLines(InputPath)
-            .Select((row, x) => row.Select((ch, y) => new Plot(ch, x, y, map)).ToList())
-            .ToList();
-        map.Plots = plots;
-        return map;
+        return regions;
     }
 
     private class Map
     {
         public List<List<Plot>> Plots { get; set; }
+        public bool IsInBounds(Coord c) => c.X >= 0 && c.Y >= 0 && c.X < Plots.Count && c.Y < Plots.Count;
+
+        public char? GetPlant(Coord coord) => IsInBounds(coord) ? Plots[coord.X][coord.Y].Plant : null;
     }
 
-    private record Plot(char Plant, int X, int Y, Map map)
+    private record Coord(int X, int Y)
     {
-        private static readonly (int xOffset, int yOffset)[] neighborOffsets = new[] { (-1, 0), (0, 1), (1, 0), (0, -1) };
-        public List<Plot> Neighbors()
+        public Coord Add(Coord offset) => new Coord(X + offset.X, Y + offset.Y);
+    }
+    private static readonly Coord Left = new Coord(0, -1);
+    private static readonly Coord Right = new Coord(0, 1);
+    private static readonly Coord Top = new Coord(-1, 0);
+    private static readonly Coord Bottom = new Coord(1, 0);
+    private static readonly Coord[] AllDirections = new Coord[] { Left, Right, Top, Bottom };
+
+    private record Plot(char Plant, Coord Coord, Map map)
+    {
+        public List<Plot> Neighbors() =>
+            AllDirections
+                .Select(x => Coord.Add(x))
+                .Where(x => map.IsInBounds(x))
+                .Select(c => map.Plots[c.X][c.Y])
+                .ToList();
+
+        public int CountCorners()
         {
-            var neighbors = new List<Plot>();
-            foreach (var o in neighborOffsets)
+            int count = 0;
+            foreach(var (dx, dy) in new[] { (Left, Top), (Right, Top), (Right, Bottom), (Left, Bottom) })
             {
-                int nx = X + o.xOffset, ny = Y + o.yOffset;
-                if (IsInBounds(nx, ny)) neighbors.Add(map.Plots[nx][ny]);
+                if(map.GetPlant(Coord.Add(dx)) != Plant && map.GetPlant(Coord.Add(dy)) != Plant) count++;
+                if (map.GetPlant(Coord.Add(dx)) == Plant && map.GetPlant(Coord.Add(dy)) == Plant && map.GetPlant(Coord.Add(dx).Add(dy)) != Plant) count++;
+
             }
-            return neighbors;
+            return count;
         }
 
         public void MapRegion(List<Plot> region)
@@ -67,6 +88,5 @@ public static class Day12
         }
 
         public int Permiter() => Neighbors().Count(n => n.Plant != Plant) + (4 - Neighbors().Count);
-        private bool IsInBounds(int x, int y) => x >= 0 && y >= 0 && x < map.Plots.Count && y < map.Plots.Count;
     }
 }
