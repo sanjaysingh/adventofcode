@@ -1,78 +1,138 @@
 ﻿namespace AdventOfCode;
-using Map = char[][];
+
 public static class Day15
 {
     private static readonly string InputPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "day15", "input.txt");
-    private const char ROBOT = '@';
-    private const char WALL = '#';
-    private const char EMPTY = '.';
-    private const char BOX = 'O';
-    private static readonly Dictionary<char, Position> charDirections = new Dictionary<char, Position>
+    private const char Robot = '@', Wall = '#', Empty = '.', Box = 'O';
+
+    private static readonly Dictionary<char, Position> Directions = new()
     {
-        { '^', new Position(-1, 0)},
-        { 'v', new Position(1, 0)},
-        { '<', new Position(0, -1)},
-        { '>', new Position(0, 1)}
+        ['^'] = new(-1, 0),
+        ['v'] = new(1, 0),
+        ['<'] = new(0, -1),
+        ['>'] = new(0, 1)
     };
+
     public static void SolvePart1()
     {
         var (map, movements) = ReadInput();
-        var robotPosition = map.SelectMany((row, x) => row.Select((ch, y) => new { Ch = ch, Pos = new Position(x, y) }))
-                                .First(pos => pos.Ch == '@').Pos;
-        foreach (var ch in movements)
+        var robotPos = FindCharacter(map, Robot);
+
+        foreach (var move in movements)
         {
-            var direction = charDirections[ch];
-            robotPosition = map.Shift(robotPosition, direction);
+            robotPos = map.Shift(robotPos, Directions[move]);
         }
-        var sum = map
-                   .SelectMany((row, x) => row.Select((ch, y) => new { Ch = ch, Pos = new Position(x, y) }))
-                   .Where(c => c.Ch == BOX)
-                   .Select(c => (100 * c.Pos.X) + c.Pos.Y)
-                   .Sum();
-        Console.WriteLine(sum);
+
+        Console.WriteLine(CalculateScore(map, Box));
     }
+
     public static void SolvePart2()
     {
         var (map, movements) = ReadInput();
-        map = map.Select(row => new string(row).Replace("#", "##").Replace("O", "[]").Replace(".", "..").Replace("@", "@.").ToCharArray()).ToArray();
-        var robotPosition = map.SelectMany((row, x) => row.Select((ch, y) => new { Ch = ch, Pos = new Position(x, y) }))
-                                .First(pos => pos.Ch == '@').Pos;
-    }
-
-    private static Position Shift(this Map map, Position[] positions, Position direction)
-    {
-        var nextPositions = new List<Position>();
-        nextPositions.AddRange(positions.Select(p => p.Next(direction)));
-    }
-
-    private static Position Shift(this Map map, Position currentPosition, Position direction)
-    {
-        var nextPos = currentPosition.Next(direction);
-        if (map.CharAt(nextPos) == EMPTY) return map.Swap(currentPosition, nextPos);
-        else if (map.CharAt(nextPos) == BOX)
+        map = map.Select(row => row.Select(c => c switch
         {
-            Shift(map, nextPos, direction);
-            if (map.CharAt(nextPos) == EMPTY) return map.Swap(currentPosition, nextPos);
+            Wall => "##",
+            Box => "[]",
+            Empty => "..",
+            Robot => "@.",
+            _ => throw new ArgumentException($"Invalid character: {c}")
+        }).SelectMany(s => s).ToArray()).ToArray();
+
+        var robotPos = FindCharacter(map, Robot);
+
+        foreach (var move in movements)
+        {
+            var direction = Directions[move];
+            if (map.CanShift(robotPos, direction))
+                robotPos = map.Shift2(robotPos, direction);
         }
-        return currentPosition;
+
+        Console.WriteLine(CalculateScore(map, '['));
     }
-    private static Position Swap(this Map map, Position pos1, Position pos2)
+
+    private static Position Shift2(this char[][] map, Position pos, Position direction)
     {
-        var pos1Char = map.CharAt(pos1);
-        map.Set(pos1, map.CharAt(pos2));
-        map.Set(pos2, pos1Char);
+        var nextPos = pos + direction;
+        if (map.CharAt(nextPos) == Empty) return map.Swap(pos, nextPos);
+        if (map.CharAt(nextPos) == Wall) return pos;
+
+        var nextPositions = new List<Position> { nextPos };
+        if (direction.IsUpOrDown)
+        {
+            if (map.CharAt(nextPos) == '[') nextPositions.Add(nextPos.Right);
+            if (map.CharAt(nextPos) == ']') nextPositions.Add(nextPos.Left);
+        }
+
+        foreach (var next in nextPositions)
+        {
+            map.Shift2(next, direction);
+        }
+
+        return map.CharAt(nextPos) == Empty ? map.Swap(pos, nextPos) : nextPos;
+    }
+
+    private static bool CanShift(this char[][] map, Position pos, Position direction)
+    {
+        var nextPos = pos + direction;
+        if (map.CharAt(nextPos) == Empty) return true;
+        if (map.CharAt(nextPos) == Wall) return false;
+
+        var nextPositions = new List<Position> { nextPos };
+        if (direction.IsUpOrDown)
+        {
+            if (map.CharAt(nextPos) == '[') nextPositions.Add(nextPos.Right);
+            if (map.CharAt(nextPos) == ']') nextPositions.Add(nextPos.Left);
+        }
+
+        return nextPositions.All(next => map.CanShift(next, direction));
+    }
+
+    private static Position Shift(this char[][] map, Position pos, Position direction)
+    {
+        var nextPos = pos + direction;
+        if (map.CharAt(nextPos) == Empty) return map.Swap(pos, nextPos);
+        if (map.CharAt(nextPos) == Box)
+        {
+            map.Shift(nextPos, direction);
+            if (map.CharAt(nextPos) == Empty) return map.Swap(pos, nextPos);
+        }
+        return pos;
+    }
+
+    private static Position FindCharacter(char[][] map, char target) =>
+        map.SelectMany((row, x) => row.Select((ch, y) => new { Ch = ch, Pos = new Position(x, y) }))
+           .First(pos => pos.Ch == target).Pos;
+
+    private static int CalculateScore(char[][] map, char target) =>
+        map.SelectMany((row, x) => row.Select((ch, y) => new { Ch = ch, Pos = new Position(x, y) }))
+           .Where(c => c.Ch == target)
+           .Sum(c => 100 * c.Pos.X + c.Pos.Y);
+
+    private static Position Swap(this char[][] map, Position pos1, Position pos2)
+    {
+        (map[pos1.X][pos1.Y], map[pos2.X][pos2.Y]) = (map[pos2.X][pos2.Y], map[pos1.X][pos1.Y]);
         return pos2;
     }
-    private static char CharAt(this Map map, Position pos) => map[pos.X][pos.Y];
-    private static void Set(this Map map, Position pos, char ch) => map[pos.X][pos.Y] = ch;
-    private record Position(int X, int Y)
+
+    private static char CharAt(this char[][] map, Position pos) => map[pos.X][pos.Y];
+
+    private readonly record struct Position(int X, int Y)
     {
-        public Position Next(Position offset) => new Position(X + offset.X, Y + offset.Y);
+        public static Position operator +(Position a, Position b) => new(a.X + b.X, a.Y + b.Y);
+        public bool IsUpOrDown => X is 1 or -1;
+        public Position Right => this with { Y = Y + 1 };
+        public Position Left => this with { Y = Y - 1 };
     }
-    private static (Map, string) ReadInput()
+
+    private static (char[][] Map, string Movements) ReadInput()
     {
         var lines = File.ReadAllLines(InputPath);
-        return (lines.TakeWhile(line => !string.IsNullOrWhiteSpace(line)).Select(line => line.ToCharArray()).ToArray(),
-              lines.SkipWhile(line => !string.IsNullOrWhiteSpace(line)).Skip(1).Aggregate((l1, l2) => l1.Trim() + l2.Trim()));
+        var map = lines.TakeWhile(line => !string.IsNullOrWhiteSpace(line))
+                      .Select(line => line.ToCharArray())
+                      .ToArray();
+        var movements = lines.SkipWhile(line => !string.IsNullOrWhiteSpace(line))
+                           .Skip(1)
+                           .Aggregate("", (acc, line) => acc + line.Trim());
+        return (map, movements);
     }
 }
