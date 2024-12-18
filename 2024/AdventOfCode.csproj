@@ -12,6 +12,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="day18\input.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="day17\input.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
